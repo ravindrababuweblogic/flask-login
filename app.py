@@ -1,63 +1,72 @@
-from flask import Flask, url_for, render_template, request, redirect, session
-from flask_sqlalchemy import SQLAlchemy
+import os
+import random
+import pyttsx3
+import azure.cognitiveservices.speech as speechsdk
+from flask import Flask, render_template
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-db = SQLAlchemy(app)
+app.secret_key = "super secret key"
+
+# Initialize the text-to-speech engine
+engine = pyttsx3.init()
+ai_number = 0
+
+# Initialize the speech config for Azure Open AI speech service
+speech_config = speechsdk.SpeechConfig(subscription="7e23ef5547644534b78b21fc8c15aa7b", region="eastus2")
 
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True)
-    password = db.Column(db.String(100))
-
-    def __init__(self, username, password):
-        self.username = username
-        self.password = password
-
-
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
-    if session.get('logged_in'):
-        return render_template('home.html')
-    else:
-        return render_template('index.html', message="Hello!")
+    return render_template('generate.html')
 
 
-@app.route('/register/', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        try:
-            db.session.add(User(username=request.form['username'], password=request.form['password']))
-            db.session.commit()
-            return redirect(url_for('login'))
-        except:
-            return render_template('index.html', message="User Already Exists")
-    else:
-        return render_template('register.html')
+# Function to generate a random number for AI-generated voice
+def generate_random_number():
+    return random.randint(1, 10000)
 
 
-@app.route('/login/', methods=['GET', 'POST'])
-def login():
-    if request.method == 'GET':
-        return render_template('login.html')
-    else:
-        u = request.form['username']
-        p = request.form['password']
-        data = User.query.filter_by(username=u, password=p).first()
-        if data is not None:
-            session['logged_in'] = True
-            return redirect(url_for('index'))
-        return render_template('index.html', message="Incorrect Details")
+# Function to generate AI-generated voice using Azure Open AI speech service
+def ai_voice(number):
+    engine.setProperty('rate', 200)
+    engine.say(f"Your number is {number}")
+    engine.runAndWait()
 
 
-@app.route('/logout', methods=['GET', 'POST'])
-def logout():
-    session['logged_in'] = False
-    return redirect(url_for('index'))
+# Function to recognize human voice using Azure Open AI speech service
+def recognize_human_voice():
+    print("here")
+    audio_input = speechsdk.AudioConfig(filename="path_to_audio_file_or_audio_stream")
+    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_input)
 
-if(__name__ == '__main__'):
-    app.secret_key = "ThisIsNotASecret:p"
-    with app.app_context():
-        db.create_all()
-    app.run()
+    result = speech_recognizer.recognize_once_async().get()
+
+    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        print(f"Recognized: {result.text}")
+        return result.text
+    elif result.reason == speechsdk.ResultReason.NoMatch:
+        print("No speech could be recognized")
+        return None
+
+
+@app.route('/generate', methods=['GET', 'POST'])
+def generate():
+    # Generate a random number for AI-generated voice
+    ai_number = generate_random_number()
+
+    # Generate AI-generated voice using Azure Open AI speech service
+    ai_voice(ai_number)
+    print(ai_number)
+
+    return render_template('generate.html')
+
+
+@app.route('/voicetest', methods=['GET', 'POST'])
+def voicetest():
+    # Recognize human voice using Azure Open AI speech service
+    human_voice = recognize_human_voice()
+
+    # Check if the recognized text matches the expected pattern and proceed accordingly
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
