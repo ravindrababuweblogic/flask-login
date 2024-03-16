@@ -1,2 +1,7 @@
 Flask
-Flask-SQLAlchemy
+azure-cognitiveservices-speech
+pathlib
+pyrandom
+sounddevice
+pydub
+pyttsx3
